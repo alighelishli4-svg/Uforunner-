@@ -1,0 +1,68 @@
+
+name: Build UFO Runner Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "UFO_Runner_Android_Studio_Release_1.0.0.zip"
+      - ".github/workflows/Build-android.yaml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      GAME_URL: ${{ vars.GAME_URL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate ZIP and Worker URL
+        run: |
+          test -f UFO_Runner_Android_Studio_Release_1.0.0.zip || {
+            echo "ZIP file not found in repository root"
+            exit 1
+          }
+          case "$GAME_URL" in
+            https://*) ;;
+            *) echo "Set GAME_URL in GitHub Repository Variables"; exit 1 ;;
+          esac
+          case "$GAME_URL" in
+            *YOUR-WORKER*) echo "Replace placeholder Worker URL"; exit 1 ;;
+          esac
+
+      - name: Extract project ZIP
+        run: |
+          mkdir extracted
+          unzip -q UFO_Runner_Android_Studio_Release_1.0.0.zip -d extracted
+          test -f extracted/ufo/android-app/settings.gradle.kts
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build Debug APK
+        run: |
+          gradle -p extracted/ufo/android-app --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: UFO-Runner-APK
+          path: extracted/ufo/android-app/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
